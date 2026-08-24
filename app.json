@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "CURING",
+    "slug": "curing",
+    "scheme": "curing",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#3C7CBE"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.curing.mobile"
+    },
+    "android": {
+      "package": "app.curing.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#3C7CBE"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d2c3acc2-fe9f-4fa7-9c1b-736d74a070d0"
+      }
+    },
+    "owner": "quring"
+  }
+}
