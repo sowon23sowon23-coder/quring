@@ -32,10 +32,13 @@ export default function LoginPage() {
   function translateError(raw: string): string {
     const m = raw.toLowerCase();
     if (m.includes("invalid login credentials")) {
-      return "이메일 또는 비밀번호가 맞지 않아요. 처음이라면 아래 ‘계정 만들기’를 눌러 가입해 주세요.";
+      return "이메일 또는 비밀번호가 맞지 않아요. 처음이면 ‘계정 만들기’로 가입하고, 예전에 만든 계정이면 Supabase 대시보드에서 삭제 후 다시 가입해 주세요.";
     }
     if (m.includes("already registered") || m.includes("already been registered")) {
       return "이미 가입된 이메일이에요. ‘이미 계정이 있어요’로 로그인해 주세요.";
+    }
+    if (m.includes("email not confirmed")) {
+      return "이메일 인증이 완료되지 않은 계정이에요. Supabase 대시보드에서 이 계정을 삭제하고 다시 가입하거나, 인증을 완료해 주세요.";
     }
     if (m.includes("password should be at least")) return "비밀번호는 6자 이상이어야 해요.";
     if (m.includes("unable to validate email") || m.includes("invalid format")) {
@@ -59,9 +62,6 @@ export default function LoginPage() {
 
     if (result.error) {
       setMessage(translateError(result.error.message));
-      if (mode === "sign-in" && result.error.message.toLowerCase().includes("invalid login")) {
-        setMode("sign-up");
-      }
     } else if (mode === "sign-up" && !result.data.session) {
       setMessage("가입 확인 메일을 확인해 주세요.");
     } else {
