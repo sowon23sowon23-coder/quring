@@ -29,6 +29,24 @@ export default function LoginPage() {
     });
   }, [router, next]);
 
+  function translateError(raw: string): string {
+    const m = raw.toLowerCase();
+    if (m.includes("invalid login credentials")) {
+      return "이메일 또는 비밀번호가 맞지 않아요. 처음이라면 아래 ‘계정 만들기’를 눌러 가입해 주세요.";
+    }
+    if (m.includes("already registered") || m.includes("already been registered")) {
+      return "이미 가입된 이메일이에요. ‘이미 계정이 있어요’로 로그인해 주세요.";
+    }
+    if (m.includes("password should be at least")) return "비밀번호는 6자 이상이어야 해요.";
+    if (m.includes("unable to validate email") || m.includes("invalid format")) {
+      return "이메일 형식을 확인해 주세요.";
+    }
+    if (m.includes("email logins are disabled") || m.includes("signups not allowed")) {
+      return "이메일 로그인이 비활성화되어 있어요. (Supabase Auth 설정 필요)";
+    }
+    return raw;
+  }
+
   async function submit() {
     if (!supabase) return;
     setBusy(true);
@@ -40,7 +58,10 @@ export default function LoginPage() {
         : await supabase.auth.signUp({ email, password });
 
     if (result.error) {
-      setMessage(result.error.message);
+      setMessage(translateError(result.error.message));
+      if (mode === "sign-in" && result.error.message.toLowerCase().includes("invalid login")) {
+        setMode("sign-up");
+      }
     } else if (mode === "sign-up" && !result.data.session) {
       setMessage("가입 확인 메일을 확인해 주세요.");
     } else {
