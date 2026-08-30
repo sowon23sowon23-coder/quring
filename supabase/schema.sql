@@ -1,6 +1,12 @@
+-- CURING schema — 1:1 QT Mate MVP
+-- Supabase SQL Editor 에 통째로 붙여넣어 실행하세요. 재실행 가능(idempotent).
+
 create extension if not exists "pgcrypto";
 
-create table public.profiles (
+-- ---------------------------------------------------------------------------
+-- profiles
+-- ---------------------------------------------------------------------------
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nickname text not null,
   avatar_url text,
@@ -33,7 +39,19 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
-create table public.daily_scriptures (
+-- updated_at 자동 갱신
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- daily_scriptures
+-- ---------------------------------------------------------------------------
+create table if not exists public.daily_scriptures (
   id uuid primary key default gen_random_uuid(),
   scripture_date date not null unique,
   bible_book text not null,
@@ -51,7 +69,14 @@ create table public.daily_scriptures (
   updated_at timestamptz not null default now()
 );
 
-create table public.qt_entries (
+drop trigger if exists daily_scriptures_touch on public.daily_scriptures;
+create trigger daily_scriptures_touch before update on public.daily_scriptures
+  for each row execute function public.touch_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- qt_entries / qt_answers
+-- ---------------------------------------------------------------------------
+create table if not exists public.qt_entries (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   daily_scripture_id uuid not null references public.daily_scriptures(id) on delete cascade,
@@ -63,7 +88,11 @@ create table public.qt_entries (
   unique (user_id, daily_scripture_id)
 );
 
-create table public.qt_answers (
+drop trigger if exists qt_entries_touch on public.qt_entries;
+create trigger qt_entries_touch before update on public.qt_entries
+  for each row execute function public.touch_updated_at();
+
+create table if not exists public.qt_answers (
   id uuid primary key default gen_random_uuid(),
   qt_entry_id uuid not null references public.qt_entries(id) on delete cascade,
   question_key text not null check (question_key in ('heart_verse', 'message', 'practice', 'prayer')),
@@ -73,18 +102,31 @@ create table public.qt_answers (
   unique (qt_entry_id, question_key)
 );
 
-create table public.qt_mates (
+drop trigger if exists qt_answers_touch on public.qt_answers;
+create trigger qt_answers_touch before update on public.qt_answers
+  for each row execute function public.touch_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- qt_mates (1:1) / qt_schedules
+-- ---------------------------------------------------------------------------
+create table if not exists public.qt_mates (
   id uuid primary key default gen_random_uuid(),
   requester_id uuid not null references public.profiles(id) on delete cascade,
   receiver_id uuid references public.profiles(id) on delete cascade,
   invite_token text not null unique default encode(gen_random_bytes(18), 'hex'),
-  status text not null default 'pending' check (status in ('pending', 'accepted', 'blocked', 'ended')),
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'ended')),
   accepted_at timestamptz,
   created_at timestamptz not null default now(),
-  constraint one_to_one_pair check (requester_id <> receiver_id)
+  constraint one_to_one_pair check (requester_id is distinct from receiver_id)
 );
 
-create table public.qt_schedules (
+-- 한 사람은 활성(accepted) 메이트를 하나만
+create unique index if not exists qt_mates_active_requester
+  on public.qt_mates (requester_id) where status = 'accepted';
+create unique index if not exists qt_mates_active_receiver
+  on public.qt_mates (receiver_id) where status = 'accepted';
+
+create table if not exists public.qt_schedules (
   id uuid primary key default gen_random_uuid(),
   qt_mate_id uuid not null references public.qt_mates(id) on delete cascade,
   weekday int not null check (weekday between 0 and 6),
@@ -92,7 +134,10 @@ create table public.qt_schedules (
   unique (qt_mate_id, weekday)
 );
 
-create table public.qt_reactions (
+-- ---------------------------------------------------------------------------
+-- reactions / comments / notifications / aquarium
+-- ---------------------------------------------------------------------------
+create table if not exists public.qt_reactions (
   id uuid primary key default gen_random_uuid(),
   qt_entry_id uuid not null references public.qt_entries(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
@@ -101,25 +146,25 @@ create table public.qt_reactions (
   unique (qt_entry_id, user_id, reaction_type)
 );
 
-create table public.qt_comments (
+create table if not exists public.qt_comments (
   id uuid primary key default gen_random_uuid(),
   qt_entry_id uuid not null references public.qt_entries(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
-  body text not null,
+  body text not null check (char_length(body) between 1 and 2000),
   created_at timestamptz not null default now()
 );
 
-create table public.notifications (
+create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   actor_id uuid references public.profiles(id) on delete set null,
-  type text not null check (type in ('mate_completed', 'reaction', 'prayer', 'comment', 'qt_day', 'streak')),
+  type text not null check (type in ('mate_completed', 'mate_accepted', 'reaction', 'comment', 'qt_day', 'streak')),
   payload jsonb not null default '{}'::jsonb,
   read_at timestamptz,
   created_at timestamptz not null default now()
 );
 
-create table public.aquarium_progress (
+create table if not exists public.aquarium_progress (
   user_id uuid primary key references public.profiles(id) on delete cascade,
   total_qt_count int not null default 0,
   current_streak int not null default 0,
@@ -128,24 +173,116 @@ create table public.aquarium_progress (
   updated_at timestamptz not null default now()
 );
 
-create view public.qt_mate_unlocks as
-select
-  mine.id as my_entry_id,
-  theirs.id as mate_entry_id,
-  mate.id as qt_mate_id,
-  mine.user_id as user_id,
-  theirs.user_id as mate_user_id,
-  mine.daily_scripture_id,
-  (mine.status = 'completed' and theirs.status = 'completed') as can_view_each_other
-from public.qt_mates mate
-join public.qt_entries mine
-  on mine.user_id in (mate.requester_id, mate.receiver_id)
-join public.qt_entries theirs
-  on theirs.daily_scripture_id = mine.daily_scripture_id
- and theirs.user_id in (mate.requester_id, mate.receiver_id)
- and theirs.user_id <> mine.user_id
-where mate.status = 'accepted';
+-- ---------------------------------------------------------------------------
+-- 보안 헬퍼 (SECURITY DEFINER — RLS 재귀를 피하기 위해 소유자 권한으로 실행)
+-- ---------------------------------------------------------------------------
+create or replace function public.are_mates(a uuid, b uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.qt_mates m
+    where m.status = 'accepted'
+      and ((m.requester_id = a and m.receiver_id = b)
+        or (m.requester_id = b and m.receiver_id = a))
+  );
+$$;
 
+-- 대상 엔트리를 현재 사용자가 볼 수 있는가? (둘 다 같은 본문을 완료 + 메이트 관계)
+create or replace function public.can_view_entry(target_entry uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1
+    from public.qt_entries target
+    join public.qt_entries mine
+      on mine.daily_scripture_id = target.daily_scripture_id
+     and mine.user_id = auth.uid()
+    where target.id = target_entry
+      and target.status = 'completed'
+      and mine.status = 'completed'
+      and public.are_mates(target.user_id, auth.uid())
+  );
+$$;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin');
+$$;
+
+-- ---------------------------------------------------------------------------
+-- RPC: 초대 미리보기 / 수락
+-- ---------------------------------------------------------------------------
+create or replace function public.get_invite(token text)
+returns table (requester_nickname text, status text, is_self boolean)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select p.nickname, m.status, (m.requester_id = auth.uid())
+  from public.qt_mates m
+  join public.profiles p on p.id = m.requester_id
+  where m.invite_token = token;
+$$;
+
+create or replace function public.accept_invite(token text)
+returns public.qt_mates
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target public.qt_mates;
+begin
+  select * into target from public.qt_mates where invite_token = token for update;
+
+  if target.id is null then
+    raise exception '초대를 찾을 수 없습니다.' using errcode = 'P0002';
+  end if;
+  if target.status <> 'pending' then
+    raise exception '이미 처리된 초대입니다.' using errcode = 'P0001';
+  end if;
+  if target.requester_id = auth.uid() then
+    raise exception '자신의 초대는 수락할 수 없습니다.' using errcode = 'P0001';
+  end if;
+  if exists (
+    select 1 from public.qt_mates m
+    where m.status = 'accepted'
+      and auth.uid() in (m.requester_id, m.receiver_id)
+  ) then
+    raise exception '이미 활성 메이트가 있습니다.' using errcode = 'P0001';
+  end if;
+
+  update public.qt_mates
+     set receiver_id = auth.uid(),
+         status = 'accepted',
+         accepted_at = now()
+   where id = target.id
+   returning * into target;
+
+  insert into public.notifications (user_id, actor_id, type)
+  values (target.requester_id, auth.uid(), 'mate_accepted');
+
+  return target;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- RLS
+-- ---------------------------------------------------------------------------
 alter table public.profiles enable row level security;
 alter table public.daily_scriptures enable row level security;
 alter table public.qt_entries enable row level security;
@@ -157,138 +294,139 @@ alter table public.qt_comments enable row level security;
 alter table public.notifications enable row level security;
 alter table public.aquarium_progress enable row level security;
 
-create policy "Profiles are readable by signed-in users" on public.profiles
+-- profiles ------------------------------------------------------------------
+drop policy if exists "profiles read" on public.profiles;
+create policy "profiles read" on public.profiles
   for select using (auth.role() = 'authenticated');
 
-create policy "Users insert own profile" on public.profiles
+drop policy if exists "profiles insert self" on public.profiles;
+create policy "profiles insert self" on public.profiles
   for insert with check (auth.uid() = id);
 
-create policy "Users update own profile" on public.profiles
+drop policy if exists "profiles update self" on public.profiles;
+create policy "profiles update self" on public.profiles
   for update using (auth.uid() = id);
 
-create policy "Scriptures are readable by signed-in users" on public.daily_scriptures
+-- daily_scriptures --------------------------------------------------------
+drop policy if exists "scriptures read" on public.daily_scriptures;
+create policy "scriptures read" on public.daily_scriptures
   for select using (auth.role() = 'authenticated');
 
-create policy "Admins manage scriptures" on public.daily_scriptures
-  for all using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
+drop policy if exists "scriptures admin write" on public.daily_scriptures;
+create policy "scriptures admin write" on public.daily_scriptures
+  for all using (public.is_admin()) with check (public.is_admin());
 
-create policy "Users manage own qt entries" on public.qt_entries
-  for all using (auth.uid() = user_id);
+-- qt_entries ------------------------------------------------------------
+drop policy if exists "entries select own or unlocked" on public.qt_entries;
+create policy "entries select own or unlocked" on public.qt_entries
+  for select using (auth.uid() = user_id or public.can_view_entry(id));
 
-create policy "Users manage answers through own entries" on public.qt_answers
+drop policy if exists "entries insert own" on public.qt_entries;
+create policy "entries insert own" on public.qt_entries
+  for insert with check (auth.uid() = user_id);
+
+drop policy if exists "entries update own" on public.qt_entries;
+create policy "entries update own" on public.qt_entries
+  for update using (auth.uid() = user_id);
+
+drop policy if exists "entries delete own" on public.qt_entries;
+create policy "entries delete own" on public.qt_entries
+  for delete using (auth.uid() = user_id);
+
+-- qt_answers ----------------------------------------------------------
+drop policy if exists "answers select" on public.qt_answers;
+create policy "answers select" on public.qt_answers
+  for select using (
+    exists (select 1 from public.qt_entries e where e.id = qt_entry_id and e.user_id = auth.uid())
+    or public.can_view_entry(qt_entry_id)
+  );
+
+drop policy if exists "answers write own" on public.qt_answers;
+create policy "answers write own" on public.qt_answers
   for all using (
+    exists (select 1 from public.qt_entries e where e.id = qt_entry_id and e.user_id = auth.uid())
+  ) with check (
     exists (select 1 from public.qt_entries e where e.id = qt_entry_id and e.user_id = auth.uid())
   );
 
-create policy "Users read unlocked mate entries" on public.qt_entries
-  for select using (
-    auth.uid() = user_id
-    or exists (
-      select 1
-      from public.qt_mate_unlocks u
-      where u.mate_entry_id = qt_entries.id
-        and u.user_id = auth.uid()
-        and u.can_view_each_other
-    )
-  );
-
--- qt_mates: 관계 당사자만 조회, 요청자만 생성, 당사자가 상태 변경
-create policy "Mates read own pairings" on public.qt_mates
+-- qt_mates ----------------------------------------------------------
+drop policy if exists "mates select own" on public.qt_mates;
+create policy "mates select own" on public.qt_mates
   for select using (auth.uid() = requester_id or auth.uid() = receiver_id);
 
-create policy "Mates create as requester" on public.qt_mates
+drop policy if exists "mates insert as requester" on public.qt_mates;
+create policy "mates insert as requester" on public.qt_mates
   for insert with check (auth.uid() = requester_id);
 
-create policy "Mates update by participants" on public.qt_mates
+drop policy if exists "mates update participant" on public.qt_mates;
+create policy "mates update participant" on public.qt_mates
   for update using (auth.uid() = requester_id or auth.uid() = receiver_id);
 
-create policy "Mates delete by requester" on public.qt_mates
+drop policy if exists "mates delete requester" on public.qt_mates;
+create policy "mates delete requester" on public.qt_mates
   for delete using (auth.uid() = requester_id);
 
--- qt_schedules: 관계 당사자만 접근
-create policy "Schedules visible to mate participants" on public.qt_schedules
-  for select using (
-    exists (
-      select 1 from public.qt_mates m
-      where m.id = qt_schedules.qt_mate_id
-        and (auth.uid() = m.requester_id or auth.uid() = m.receiver_id)
-    )
-  );
-
-create policy "Schedules managed by mate participants" on public.qt_schedules
+-- qt_schedules ----------------------------------------------------
+drop policy if exists "schedules participant" on public.qt_schedules;
+create policy "schedules participant" on public.qt_schedules
   for all using (
     exists (
       select 1 from public.qt_mates m
       where m.id = qt_schedules.qt_mate_id
         and (auth.uid() = m.requester_id or auth.uid() = m.receiver_id)
     )
-  );
-
--- qt_reactions: 공개된(상호 완료) 엔트리에만 반응 가능, 본인 반응만 관리
-create policy "Reactions readable on visible entries" on public.qt_reactions
-  for select using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.qt_mate_unlocks u
-      where u.mate_entry_id = qt_reactions.qt_entry_id
-        and u.user_id = auth.uid()
-        and u.can_view_each_other
+  ) with check (
+    exists (
+      select 1 from public.qt_mates m
+      where m.id = qt_schedules.qt_mate_id
+        and (auth.uid() = m.requester_id or auth.uid() = m.receiver_id)
     )
   );
 
-create policy "Reactions inserted by self on unlocked entries" on public.qt_reactions
-  for insert with check (
-    auth.uid() = user_id
-    and exists (
-      select 1 from public.qt_mate_unlocks u
-      where u.mate_entry_id = qt_reactions.qt_entry_id
-        and u.user_id = auth.uid()
-        and u.can_view_each_other
-    )
-  );
+-- qt_reactions --------------------------------------------------
+drop policy if exists "reactions select" on public.qt_reactions;
+create policy "reactions select" on public.qt_reactions
+  for select using (auth.uid() = user_id or public.can_view_entry(qt_entry_id));
 
-create policy "Reactions deleted by self" on public.qt_reactions
+drop policy if exists "reactions insert self" on public.qt_reactions;
+create policy "reactions insert self" on public.qt_reactions
+  for insert with check (auth.uid() = user_id and public.can_view_entry(qt_entry_id));
+
+drop policy if exists "reactions delete self" on public.qt_reactions;
+create policy "reactions delete self" on public.qt_reactions
   for delete using (auth.uid() = user_id);
 
--- qt_comments: 반응과 동일한 가시성 규칙
-create policy "Comments readable on visible entries" on public.qt_comments
-  for select using (
-    auth.uid() = user_id
-    or exists (
-      select 1 from public.qt_mate_unlocks u
-      where u.mate_entry_id = qt_comments.qt_entry_id
-        and u.user_id = auth.uid()
-        and u.can_view_each_other
-    )
-  );
+-- qt_comments -------------------------------------------------
+drop policy if exists "comments select" on public.qt_comments;
+create policy "comments select" on public.qt_comments
+  for select using (auth.uid() = user_id or public.can_view_entry(qt_entry_id));
 
-create policy "Comments inserted by self on unlocked entries" on public.qt_comments
-  for insert with check (
-    auth.uid() = user_id
-    and exists (
-      select 1 from public.qt_mate_unlocks u
-      where u.mate_entry_id = qt_comments.qt_entry_id
-        and u.user_id = auth.uid()
-        and u.can_view_each_other
-    )
-  );
+drop policy if exists "comments insert self" on public.qt_comments;
+create policy "comments insert self" on public.qt_comments
+  for insert with check (auth.uid() = user_id and public.can_view_entry(qt_entry_id));
 
-create policy "Comments updated by self" on public.qt_comments
+drop policy if exists "comments update self" on public.qt_comments;
+create policy "comments update self" on public.qt_comments
   for update using (auth.uid() = user_id);
 
-create policy "Comments deleted by self" on public.qt_comments
+drop policy if exists "comments delete self" on public.qt_comments;
+create policy "comments delete self" on public.qt_comments
   for delete using (auth.uid() = user_id);
 
--- notifications: 수신자 본인만
-create policy "Notifications readable by recipient" on public.notifications
+-- notifications ---------------------------------------------
+drop policy if exists "notifications recipient read" on public.notifications;
+create policy "notifications recipient read" on public.notifications
   for select using (auth.uid() = user_id);
 
-create policy "Notifications updated by recipient" on public.notifications
+drop policy if exists "notifications recipient update" on public.notifications;
+create policy "notifications recipient update" on public.notifications
   for update using (auth.uid() = user_id);
 
--- aquarium_progress: 본인만
-create policy "Aquarium progress readable by owner" on public.aquarium_progress
+-- aquarium_progress --------------------------------------
+drop policy if exists "aquarium owner read" on public.aquarium_progress;
+create policy "aquarium owner read" on public.aquarium_progress
   for select using (auth.uid() = user_id);
 
-create policy "Aquarium progress managed by owner" on public.aquarium_progress
+drop policy if exists "aquarium owner write" on public.aquarium_progress;
+create policy "aquarium owner write" on public.aquarium_progress
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
