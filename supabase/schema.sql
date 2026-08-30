@@ -201,6 +201,13 @@ create table if not exists public.aquarium_progress (
   updated_at timestamptz not null default now()
 );
 
+create index if not exists qt_entries_scripture_idx on public.qt_entries (daily_scripture_id);
+create index if not exists qt_answers_entry_idx on public.qt_answers (qt_entry_id);
+create index if not exists qt_reactions_entry_idx on public.qt_reactions (qt_entry_id);
+create index if not exists qt_comments_entry_idx on public.qt_comments (qt_entry_id);
+create index if not exists notifications_user_unread_idx
+  on public.notifications (user_id, created_at desc) where read_at is null;
+
 -- ---------------------------------------------------------------------------
 -- 보안 헬퍼 (SECURITY DEFINER — RLS 재귀를 피하기 위해 소유자 권한으로 실행)
 -- ---------------------------------------------------------------------------
@@ -292,6 +299,13 @@ begin
       and auth.uid() in (m.requester_id, m.receiver_id)
   ) then
     raise exception '이미 활성 메이트가 있습니다.' using errcode = 'P0001';
+  end if;
+  if exists (
+    select 1 from public.qt_mates m
+    where m.status = 'accepted'
+      and target.requester_id in (m.requester_id, m.receiver_id)
+  ) then
+    raise exception '상대방이 이미 다른 메이트와 연결되어 있습니다.' using errcode = 'P0001';
   end if;
 
   update public.qt_mates
@@ -414,7 +428,11 @@ create policy "schedules participant" on public.qt_schedules
 -- qt_reactions --------------------------------------------------
 drop policy if exists "reactions select" on public.qt_reactions;
 create policy "reactions select" on public.qt_reactions
-  for select using (auth.uid() = user_id or public.can_view_entry(qt_entry_id));
+  for select using (
+    auth.uid() = user_id
+    or exists (select 1 from public.qt_entries e where e.id = qt_entry_id and e.user_id = auth.uid())
+    or public.can_view_entry(qt_entry_id)
+  );
 
 drop policy if exists "reactions insert self" on public.qt_reactions;
 create policy "reactions insert self" on public.qt_reactions
@@ -427,7 +445,11 @@ create policy "reactions delete self" on public.qt_reactions
 -- qt_comments -------------------------------------------------
 drop policy if exists "comments select" on public.qt_comments;
 create policy "comments select" on public.qt_comments
-  for select using (auth.uid() = user_id or public.can_view_entry(qt_entry_id));
+  for select using (
+    auth.uid() = user_id
+    or exists (select 1 from public.qt_entries e where e.id = qt_entry_id and e.user_id = auth.uid())
+    or public.can_view_entry(qt_entry_id)
+  );
 
 drop policy if exists "comments insert self" on public.qt_comments;
 create policy "comments insert self" on public.qt_comments
