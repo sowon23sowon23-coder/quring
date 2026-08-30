@@ -25,6 +25,8 @@ import {
   statusCards,
   weekDays
 } from "@/lib/data";
+import { completeQtEntry, ensureQtEntry, getTodayScripture, saveQtAnswers } from "@/lib/qt-api";
+import { supabase } from "@/lib/supabase";
 
 type Answers = Record<number, string>;
 
@@ -42,6 +44,8 @@ export function CuringShell() {
   const [completed, setCompleted] = useState(false);
   const [mateCompleted, setMateCompleted] = useState(false);
   const [fontSize, setFontSize] = useState(17);
+  const [qtEntryId, setQtEntryId] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState("로컬 저장");
 
   const isUnlocked = completed && mateCompleted;
   const pageTitle = navItems.find((item) => item.key === activePage)?.label ?? "홈";
@@ -58,6 +62,30 @@ export function CuringShell() {
   }, []);
 
   useEffect(() => {
+    if (!supabase) return;
+
+    async function prepareQtEntry() {
+      const { data } = await supabase!.auth.getUser();
+      if (!data.user) return;
+
+      const todayScripture = await getTodayScripture();
+      if (!todayScripture) {
+        setSyncStatus("오늘 말씀 DB 없음");
+        return;
+      }
+
+      const entry = await ensureQtEntry(data.user.id, todayScripture.id);
+      if (entry) {
+        setQtEntryId(entry.id);
+        setCompleted(entry.status === "completed");
+        setSyncStatus("Supabase 연결됨");
+      }
+    }
+
+    prepareQtEntry().catch(() => setSyncStatus("DB 연결 확인 필요"));
+  }, []);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       window.localStorage.setItem("curing.qt.answers", JSON.stringify(answers));
       const stamp = new Intl.DateTimeFormat("ko-KR", {
@@ -65,14 +93,31 @@ export function CuringShell() {
         minute: "2-digit"
       }).format(new Date());
       setSavedAt(`${stamp} 자동 저장됨`);
+      if (qtEntryId) {
+        saveQtAnswers(qtEntryId, answers)
+          .then(() => setSyncStatus("Supabase 저장됨"))
+          .catch(() => setSyncStatus("Supabase 저장 실패"));
+      }
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [answers]);
+  }, [answers, qtEntryId]);
 
   useEffect(() => {
     window.localStorage.setItem("curing.qt.completed", String(completed));
   }, [completed]);
+
+  async function handleCompleteQt() {
+    setCompleted(true);
+    if (!qtEntryId) return;
+
+    try {
+      await completeQtEntry(qtEntryId, wordCount);
+      setSyncStatus("QT 완료 저장됨");
+    } catch {
+      setSyncStatus("완료 저장 실패");
+    }
+  }
 
   return (
     <div className="min-h-screen pb-20 lg:pb-0">
@@ -134,9 +179,10 @@ export function CuringShell() {
               answers={answers}
               completed={completed}
               savedAt={savedAt}
+              syncStatus={syncStatus}
               setAnswers={setAnswers}
               wordCount={wordCount}
-              onComplete={() => setCompleted(true)}
+              onComplete={handleCompleteQt}
             />
           )}
           {activePage === "mate" && (
@@ -391,6 +437,7 @@ function WorkspaceView({
   answers,
   completed,
   savedAt,
+  syncStatus,
   setAnswers,
   wordCount,
   onComplete
@@ -398,6 +445,7 @@ function WorkspaceView({
   answers: Answers;
   completed: boolean;
   savedAt: string;
+  syncStatus: string;
   setAnswers: (answers: Answers) => void;
   wordCount: number;
   onComplete: () => void;
@@ -418,7 +466,7 @@ function WorkspaceView({
           <div>
             <h2 className="text-xl font-black text-ocean-950">나의 묵상</h2>
             <p className="mt-1 text-sm font-semibold text-ocean-500">
-              {savedAt} · {wordCount} words
+              {savedAt} · {syncStatus} · {wordCount} words
             </p>
           </div>
           <span className="inline-flex items-center gap-2 rounded-full border border-ocean-100/70 bg-white px-3 py-2 text-sm font-bold text-ocean-700">
