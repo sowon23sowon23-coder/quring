@@ -15,13 +15,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [next, setNext] = useState("/");
+
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get("next");
+    if (target && target.startsWith("/")) setNext(target);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace("/");
+      if (data.session) router.replace(next);
     });
-  }, [router]);
+  }, [router, next]);
 
   async function submit() {
     if (!supabase) return;
@@ -38,7 +44,7 @@ export default function LoginPage() {
     } else if (mode === "sign-up" && !result.data.session) {
       setMessage("가입 확인 메일을 확인해 주세요.");
     } else {
-      router.replace("/");
+      router.replace(next);
       return;
     }
     setBusy(false);

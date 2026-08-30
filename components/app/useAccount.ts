@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 export type Account = {
   configured: boolean;
   loading: boolean;
+  userId: string | null;
   email: string | null;
   signOut: () => Promise<void>;
 };
@@ -16,17 +17,20 @@ export type Account = {
 export function useAccount(): Account {
   const configured = Boolean(supabase);
   const [loading, setLoading] = useState(configured);
+  const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
 
     supabase.auth.getSession().then(({ data }) => {
+      setUserId(data.session?.user.id ?? null);
       setEmail(data.session?.user.email ?? null);
       setLoading(false);
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user.id ?? null);
       setEmail(session?.user.email ?? null);
     });
 
@@ -36,6 +40,7 @@ export function useAccount(): Account {
   return {
     configured,
     loading,
+    userId,
     email,
     signOut: async () => {
       await supabase?.auth.signOut();

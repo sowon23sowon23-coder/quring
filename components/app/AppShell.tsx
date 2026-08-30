@@ -7,12 +7,14 @@ import type { ReactNode } from "react";
 import { navItems } from "@/lib/nav";
 import { displayDate } from "@/lib/scriptures";
 import { useQt } from "@/components/app/QtProvider";
+import { useMate } from "@/components/app/MateProvider";
 import { useAccount } from "@/components/app/useAccount";
 import { StatusPill } from "@/components/ui/StatusPill";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { scripture, completed, isUnlocked, mateCompleted, nickname, todayKey } = useQt();
+  const { scripture, completed, nickname, todayKey } = useQt();
+  const { mateCompleted, isUnlocked, partnerNickname } = useMate();
   const account = useAccount();
 
   const activeLabel = navItems.find((item) => item.match(pathname))?.label ?? "홈";
@@ -81,7 +83,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <h2 className="text-sm font-bold text-ocean-950">오늘 상태</h2>
             <div className="mt-3 space-y-2">
               <StatusPill label="내 QT" done={completed} doneText="완료" pendingText="작성 중" />
-              <StatusPill label="친구 완료" done={mateCompleted} doneText="완료" pendingText="대기" />
+              <StatusPill
+                label={partnerNickname ?? "친구"}
+                done={mateCompleted}
+                doneText="완료"
+                pendingText={partnerNickname ? "대기" : "미연결"}
+              />
               <StatusPill label="서로 공개" done={isUnlocked} doneText="공개됨" pendingText="잠김" />
             </div>
             <Link

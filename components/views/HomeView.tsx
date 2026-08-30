@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { ArrowRight, BookOpen, Check, PenLine } from "lucide-react";
 import { useQt } from "@/components/app/QtProvider";
+import { useMate } from "@/components/app/MateProvider";
 import { useDrafts } from "@/components/app/useDrafts";
 import { WaveMark } from "@/components/ui/WaveMark";
 import { displayDate } from "@/lib/scriptures";
 
 export function HomeView() {
-  const { scripture, completed, isUnlocked, todayKey } = useQt();
+  const { scripture, completed, todayKey } = useQt();
+  const { isUnlocked } = useMate();
   const { drafts } = useDrafts();
 
   const recent = drafts.filter((d) => d.date !== todayKey).slice(0, 4);
