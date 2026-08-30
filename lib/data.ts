@@ -8,7 +8,6 @@ import {
   Home,
   PenLine,
   Search,
-  Settings,
   ShieldCheck,
   UserRound,
   Waves
@@ -29,15 +28,18 @@ export const navItems = [
   { key: "home", label: "홈", icon: Home },
   { key: "scripture", label: "오늘의 말씀", icon: BookOpen },
   { key: "workspace", label: "QT 작성", icon: PenLine },
-  { key: "mate", label: "친구", icon: HeartHandshake },
-  { key: "archive", label: "기록", icon: CalendarDays },
+  { key: "mate", label: "친구 QT", icon: HeartHandshake },
+  { key: "archive", label: "기록", icon: CalendarDays }
+] satisfies Array<{ key: PageKey; label: string; icon: typeof Home }>;
+
+export const secondaryNavItems = [
   { key: "journey", label: "나의 바다", icon: Fish },
   { key: "notifications", label: "알림", icon: Bell },
   { key: "profile", label: "마이페이지", icon: UserRound },
   { key: "admin", label: "Admin", icon: ShieldCheck }
 ] satisfies Array<{ key: PageKey; label: string; icon: typeof Home }>;
 
-export const mobileNav = navItems.slice(0, 5);
+export const mobileNav = navItems;
 
 export const scripture = {
   date: "2026.08.30",
@@ -58,9 +60,7 @@ export const qtQuestions = [
 export const statusCards = [
   { label: "오늘 QT", value: "작성 중", tone: "bg-ocean-100 text-ocean-800" },
   { label: "친구 QT", value: "잠금", tone: "bg-lavender/20 text-ocean-900" },
-  { label: "연속 QT", value: "23일", tone: "bg-sunshine/25 text-ocean-900" },
-  { label: "이번 주", value: "3 / 3", tone: "bg-white text-ocean-800" },
-  { label: "나의 해양", value: "산호 성장", tone: "bg-coral/20 text-ocean-900" }
+  { label: "최근 기록", value: "5개", tone: "bg-white text-ocean-800" }
 ];
 
 export const history = [
@@ -79,9 +79,8 @@ export const notifications = [
 
 export const quickActions = [
   { label: "QT 작성하기", icon: PenLine, page: "workspace" as PageKey },
-  { label: "친구 초대하기", icon: HeartHandshake, page: "mate" as PageKey },
-  { label: "기록 보기", icon: Search, page: "archive" as PageKey },
-  { label: "나의 여정", icon: Compass, page: "journey" as PageKey }
+  { label: "친구 QT", icon: HeartHandshake, page: "mate" as PageKey },
+  { label: "기록 보기", icon: Search, page: "archive" as PageKey }
 ];
 
 export const weekDays = ["월", "화", "수", "목", "금", "토", "일"];
