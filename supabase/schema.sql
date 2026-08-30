@@ -16,6 +16,34 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+-- 이전 버전에서 만들어진 profiles 테이블을 현재 형태로 맞춤 (누락 컬럼 보강)
+alter table public.profiles add column if not exists nickname text;
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists role text;
+alter table public.profiles add column if not exists created_at timestamptz not null default now();
+alter table public.profiles add column if not exists updated_at timestamptz not null default now();
+
+update public.profiles set role = 'user' where role is null;
+update public.profiles
+  set nickname = coalesce(nickname, split_part(email, '@', 1), 'friend')
+  where nickname is null;
+
+alter table public.profiles alter column role set default 'user';
+alter table public.profiles alter column role set not null;
+alter table public.profiles alter column nickname set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'profiles_role_check'
+  ) then
+    alter table public.profiles
+      add constraint profiles_role_check check (role in ('user', 'admin'));
+  end if;
+end
+$$;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
