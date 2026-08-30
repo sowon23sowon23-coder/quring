@@ -24,9 +24,6 @@ const config: Config = {
         coral: "#ff8f7a",
         lavender: "#b9adff",
         sunshine: "#ffd66b"
-      },
-      boxShadow: {
-        soft: "0 18px 60px rgba(27, 87, 111, 0.12)"
       }
     }
   },

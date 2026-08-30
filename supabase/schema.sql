@@ -191,3 +191,104 @@ create policy "Users read unlocked mate entries" on public.qt_entries
         and u.can_view_each_other
     )
   );
+
+-- qt_mates: 관계 당사자만 조회, 요청자만 생성, 당사자가 상태 변경
+create policy "Mates read own pairings" on public.qt_mates
+  for select using (auth.uid() = requester_id or auth.uid() = receiver_id);
+
+create policy "Mates create as requester" on public.qt_mates
+  for insert with check (auth.uid() = requester_id);
+
+create policy "Mates update by participants" on public.qt_mates
+  for update using (auth.uid() = requester_id or auth.uid() = receiver_id);
+
+create policy "Mates delete by requester" on public.qt_mates
+  for delete using (auth.uid() = requester_id);
+
+-- qt_schedules: 관계 당사자만 접근
+create policy "Schedules visible to mate participants" on public.qt_schedules
+  for select using (
+    exists (
+      select 1 from public.qt_mates m
+      where m.id = qt_schedules.qt_mate_id
+        and (auth.uid() = m.requester_id or auth.uid() = m.receiver_id)
+    )
+  );
+
+create policy "Schedules managed by mate participants" on public.qt_schedules
+  for all using (
+    exists (
+      select 1 from public.qt_mates m
+      where m.id = qt_schedules.qt_mate_id
+        and (auth.uid() = m.requester_id or auth.uid() = m.receiver_id)
+    )
+  );
+
+-- qt_reactions: 공개된(상호 완료) 엔트리에만 반응 가능, 본인 반응만 관리
+create policy "Reactions readable on visible entries" on public.qt_reactions
+  for select using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.qt_mate_unlocks u
+      where u.mate_entry_id = qt_reactions.qt_entry_id
+        and u.user_id = auth.uid()
+        and u.can_view_each_other
+    )
+  );
+
+create policy "Reactions inserted by self on unlocked entries" on public.qt_reactions
+  for insert with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.qt_mate_unlocks u
+      where u.mate_entry_id = qt_reactions.qt_entry_id
+        and u.user_id = auth.uid()
+        and u.can_view_each_other
+    )
+  );
+
+create policy "Reactions deleted by self" on public.qt_reactions
+  for delete using (auth.uid() = user_id);
+
+-- qt_comments: 반응과 동일한 가시성 규칙
+create policy "Comments readable on visible entries" on public.qt_comments
+  for select using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from public.qt_mate_unlocks u
+      where u.mate_entry_id = qt_comments.qt_entry_id
+        and u.user_id = auth.uid()
+        and u.can_view_each_other
+    )
+  );
+
+create policy "Comments inserted by self on unlocked entries" on public.qt_comments
+  for insert with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.qt_mate_unlocks u
+      where u.mate_entry_id = qt_comments.qt_entry_id
+        and u.user_id = auth.uid()
+        and u.can_view_each_other
+    )
+  );
+
+create policy "Comments updated by self" on public.qt_comments
+  for update using (auth.uid() = user_id);
+
+create policy "Comments deleted by self" on public.qt_comments
+  for delete using (auth.uid() = user_id);
+
+-- notifications: 수신자 본인만
+create policy "Notifications readable by recipient" on public.notifications
+  for select using (auth.uid() = user_id);
+
+create policy "Notifications updated by recipient" on public.notifications
+  for update using (auth.uid() = user_id);
+
+-- aquarium_progress: 본인만
+create policy "Aquarium progress readable by owner" on public.aquarium_progress
+  for select using (auth.uid() = user_id);
+
+create policy "Aquarium progress managed by owner" on public.aquarium_progress
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
