@@ -18,6 +18,7 @@ export type PassageSelection = {
   chapter: number;
   startVerse: number;
   endVerse: number;
+  text: string;
 };
 
 export type RoomSettings = {
@@ -95,7 +96,8 @@ export function defaultRoomSettings(today: string): RoomSettings {
       book: "창세기",
       chapter: 43,
       startVerse: 15,
-      endVerse: 25
+      endVerse: 25,
+      text: ""
     }
   };
 }

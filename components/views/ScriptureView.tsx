@@ -183,6 +183,15 @@ export function ScriptureView() {
                 ? "절"
                 : `–${roomSettings.passage.endVerse}절`}
             </p>
+            <Field label="본문 내용" className="mt-3">
+              <textarea
+                value={roomSettings.passage.text}
+                onChange={(event) => updatePassage({ text: event.target.value })}
+                rows={6}
+                placeholder="선택한 본문 내용을 입력하거나 붙여넣어 주세요. 줄을 나누면 절별로 표시됩니다."
+                className="w-full rounded-2xl border border-ocean-200 bg-white px-3 py-3 text-sm leading-7 text-ocean-900 outline-none focus:border-ocean-600"
+              />
+            </Field>
           </SettingBlock>
         )}
 

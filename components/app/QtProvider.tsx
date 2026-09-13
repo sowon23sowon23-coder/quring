@@ -347,19 +347,30 @@ function passageToScripture(todayKey: string, passage: PassageSelection): DailyS
     passage.startVerse === passage.endVerse
       ? `${passage.book} ${passage.chapter}:${passage.startVerse}`
       : `${passage.book} ${passage.chapter}:${passage.startVerse}-${passage.endVerse}`;
+  const passageText = passage.text.trim();
+  const verses = passageText
+    ? passageText.split(/\n+/).map((text, index) => ({
+        no: passage.startVerse + index,
+        text: text.trim()
+      })).filter((verse) => verse.text)
+    : [];
 
   return {
     date: todayKey,
     book: passage.book,
     reference,
     title: "직접 선택한 말씀",
-    focusVerse: `${reference} 본문을 읽고 오늘 마음에 남는 말씀을 기록해보세요.`,
-    verses: [
-      {
-        no: passage.startVerse,
-        text: "선택한 범위의 성경 본문을 읽고, 가장 마음에 남는 구절을 아래 QT 기록에 남겨보세요."
-      }
-    ],
+    focusVerse: passageText
+      ? verses[0]?.text ?? `${reference} 본문을 묵상해보세요.`
+      : `${reference} 본문 내용이 아직 입력되지 않았어요.`,
+    verses: verses.length > 0
+      ? verses
+      : [
+          {
+            no: passage.startVerse,
+            text: "큐티 본문 설정에서 본문 내용을 입력하면 이곳에 선택한 말씀이 표시됩니다."
+          }
+        ],
     questions: {
       heart_verse: "가장 마음에 남는 구절은 무엇이고, 왜 그런가요?",
       message: "오늘 이 말씀을 통해 하나님이 내게 주시는 마음은 무엇인가요?",
