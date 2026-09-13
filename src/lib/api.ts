@@ -10,6 +10,27 @@ const LOCAL_KEYS = [
   'curing:guest-reactions',
 ];
 
+const LOCAL_PROFILE_KEY = LOCAL_KEYS[0];
+const LOCAL_PAIR_KEY = LOCAL_KEYS[1];
+
+function inviteCode(): string {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
+}
+
+function localId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function getLocalProfile(): Promise<Profile | null> {
+  const raw = await AsyncStorage.getItem(LOCAL_PROFILE_KEY);
+  return raw ? (JSON.parse(raw) as Profile) : null;
+}
+
+async function getLocalPair(): Promise<Pair | null> {
+  const raw = await AsyncStorage.getItem(LOCAL_PAIR_KEY);
+  return raw ? (JSON.parse(raw) as Pair) : null;
+}
+
 const FALLBACK_PASSAGE: Passage = {
   id: 'fallback-passage',
   date: today(),
@@ -46,44 +67,80 @@ export async function clearLocalData() {
 }
 
 export async function getMyProfile(): Promise<Profile | null> {
-  const id = await uid();
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
-  if (error) throw error;
-  return data as Profile | null;
+  try {
+    const id = await uid();
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data as Profile | null;
+  } catch {
+    return getLocalProfile();
+  }
 }
 
 export async function updateProfile(patch: Partial<Pick<Profile, 'name' | 'avatar'>>) {
-  const id = await uid();
-  const { error } = await supabase
-    .from('profiles')
-    .upsert({ id, ...patch }, { onConflict: 'id' });
-  if (error) throw error;
+  try {
+    const id = await uid();
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({ id, ...patch }, { onConflict: 'id' });
+    if (error) throw error;
+  } catch {
+    const existing = await getLocalProfile();
+    const next: Profile = {
+      id: existing?.id ?? localId('profile'),
+      name: patch.name ?? existing?.name ?? '',
+      avatar: patch.avatar ?? existing?.avatar ?? '🌱',
+      created_at: existing?.created_at ?? new Date().toISOString(),
+    };
+    await AsyncStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(next));
+  }
 }
 
 export async function getMyPair(): Promise<Pair | null> {
-  const id = await uid();
-  const { data, error } = await supabase
-    .from('pairs')
-    .select('*')
-    .or(`user_a.eq.${id},user_b.eq.${id}`)
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-  return data as Pair | null;
+  try {
+    const id = await uid();
+    const { data, error } = await supabase
+      .from('pairs')
+      .select('*')
+      .or(`user_a.eq.${id},user_b.eq.${id}`)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data as Pair | null;
+  } catch {
+    return getLocalPair();
+  }
 }
 
 export async function createSoloPair(days: number[]): Promise<Pair> {
   const existing = await getMyPair();
   if (existing) return existing;
 
-  const id = await uid();
-  const { data, error } = await supabase
-    .from('pairs')
-    .insert({ user_a: id, days })
-    .select()
-    .single();
-  if (error) throw error;
-  return data as Pair;
+  try {
+    const id = await uid();
+    const { data, error } = await supabase
+      .from('pairs')
+      .insert({ user_a: id, days })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as Pair;
+  } catch {
+    const profile = await getLocalProfile();
+    const now = new Date().toISOString();
+    const pair: Pair = {
+      id: localId('pair'),
+      user_a: profile?.id ?? localId('profile'),
+      user_b: null,
+      invite_code: inviteCode(),
+      days,
+      notify_at: '09:00',
+      started_on: now.slice(0, 10),
+      created_at: now,
+    };
+    await AsyncStorage.setItem(LOCAL_PAIR_KEY, JSON.stringify(pair));
+    return pair;
+  }
 }
 
 export async function joinPair(code: string): Promise<string> {
@@ -93,18 +150,28 @@ export async function joinPair(code: string): Promise<string> {
 }
 
 export async function updatePair(pairId: string, patch: Partial<Pick<Pair, 'days' | 'notify_at'>>) {
-  const { error } = await supabase.from('pairs').update(patch).eq('id', pairId);
-  if (error) throw error;
+  try {
+    const { error } = await supabase.from('pairs').update(patch).eq('id', pairId);
+    if (error) throw error;
+  } catch {
+    const existing = await getLocalPair();
+    if (!existing) return;
+    await AsyncStorage.setItem(LOCAL_PAIR_KEY, JSON.stringify({ ...existing, ...patch }));
+  }
 }
 
 export async function getPartner(pair: Pair): Promise<Profile | null> {
-  const me = await uid();
-  const other = pair.user_a === me ? pair.user_b : pair.user_a;
-  if (!other) return null;
+  try {
+    const me = await uid();
+    const other = pair.user_a === me ? pair.user_b : pair.user_a;
+    if (!other) return null;
 
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', other).maybeSingle();
-  if (error) throw error;
-  return data as Profile | null;
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', other).maybeSingle();
+    if (error) throw error;
+    return data as Profile | null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getPassage(date = today()): Promise<Passage | null> {
@@ -129,6 +196,11 @@ export async function getDayEntries(pairId: string, date = today()): Promise<Ent
     .eq('date', date);
   if (error) throw error;
   return (data ?? []) as Entry[];
+}
+
+export async function getDayDetail(pairId: string, date: string) {
+  const [passage, entries] = await Promise.all([getPassage(date), getDayEntries(pairId, date)]);
+  return { passage, entries };
 }
 
 export type DayState = {

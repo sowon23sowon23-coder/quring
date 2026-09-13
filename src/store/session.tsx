@@ -17,7 +17,7 @@ type Ctx = {
 const SessionContext = createContext<Ctx>({} as Ctx);
 export const useSession = () => useContext(SessionContext);
 
-async function ensureSession() {
+async function ensureSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession();
   if (data.session) return data.session;
 
@@ -36,7 +36,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const current = await ensureSession();
+      let current: Session | null = null;
+      try {
+        current = await ensureSession();
+      } catch (e) {
+        console.warn('Using local session fallback', e);
+      }
       setSession(current);
 
       const [p, pr] = await Promise.all([getMyProfile(), getMyPair()]);
@@ -55,7 +60,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    load();
+    void Promise.resolve().then(load);
     const { data } = supabase.auth.onAuthStateChange(() => load());
     return () => data.subscription.unsubscribe();
   }, [load]);
