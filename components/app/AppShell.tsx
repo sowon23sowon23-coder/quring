@@ -17,13 +17,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { mateCompleted, isUnlocked, partnerNickname } = useMate();
   const account = useAccount();
 
+  const isHome = pathname === "/";
   const activeLabel = navItems.find((item) => item.match(pathname))?.label ?? "홈";
 
   return (
-    <div className="min-h-screen pb-24 lg:pb-0">
-      <div className="mx-auto grid min-h-screen w-full max-w-[1400px] grid-cols-1 lg:grid-cols-[232px_minmax(0,1fr)] xl:grid-cols-[232px_minmax(0,1fr)_300px]">
+    <div className={isHome ? "min-h-screen" : "min-h-screen pb-24 lg:pb-0"}>
+      <div
+        className={`mx-auto grid min-h-screen w-full grid-cols-1 ${
+          isHome
+            ? "max-w-[1280px]"
+            : "max-w-[1400px] lg:grid-cols-[232px_minmax(0,1fr)] xl:grid-cols-[232px_minmax(0,1fr)_300px]"
+        }`}
+      >
         {/* 좌측 네비게이션 (데스크톱) */}
-        <aside className="hidden border-r border-ocean-100 bg-white px-4 py-6 lg:block">
+        {!isHome && <aside className="hidden border-r border-ocean-100 bg-white px-4 py-6 lg:block">
           <Brand />
           <nav className="mt-8 space-y-1" aria-label="주요 메뉴">
             {navItems.map((item) => {
@@ -50,11 +57,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           <p className="mt-8 rounded-2xl border border-ocean-100 bg-ocean-50/60 p-4 text-sm leading-7 text-ocean-800">
             오늘은 말씀을 읽고, 한 가지만 기록해도 충분해요.
           </p>
-        </aside>
+        </aside>}
 
         {/* 본문 */}
         <div className="flex min-w-0 flex-col">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-ocean-100 bg-white/80 px-4 py-4 sm:px-6 lg:px-8">
+          <header className={isHome ? "hidden" : "flex flex-wrap items-center justify-between gap-3 border-b border-ocean-100 bg-white/80 px-4 py-4 sm:px-6 lg:px-8"}>
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-ocean-500">{activeLabel}</p>
               <h1 className="mt-1 text-lg font-bold text-ocean-950 sm:text-xl">
@@ -74,11 +81,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </header>
 
-          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+          <main className={isHome ? "min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-8" : "min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8"}>{children}</main>
         </div>
 
         {/* 우측 요약 (넓은 화면) */}
-        <aside className="hidden border-l border-ocean-100 bg-white px-4 py-6 xl:block">
+        {!isHome && <aside className="hidden border-l border-ocean-100 bg-white px-4 py-6 xl:block">
           <section className="rounded-2xl border border-ocean-100 bg-white p-4">
             <h2 className="text-sm font-bold text-ocean-950">오늘 상태</h2>
             <div className="mt-3 space-y-2">
@@ -119,11 +126,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 : "둘 다 완료하면 서로의 묵상이 열립니다."}
             </div>
           </section>
-        </aside>
+        </aside>}
       </div>
 
       {/* 모바일 하단 네비게이션 */}
-      <nav
+      {!isHome && <nav
         className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-ocean-100 bg-white px-2 py-2 lg:hidden"
         aria-label="주요 메뉴"
       >
@@ -144,7 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           );
         })}
-      </nav>
+      </nav>}
     </div>
   );
 }
