@@ -8,6 +8,25 @@ const NICK_KEY = "curing.nickname";
 const DRAFT_PREFIX = "curing.qt.";
 const MATE_PREFIX = "curing.mate.";
 const SCRIPTURE_SELECTION_PREFIX = "curing.scripture.";
+const ROOM_SETTINGS_PREFIX = "curing.room-settings.";
+
+export type QtMethod = "manual" | "shared" | "sequence" | "recommended";
+export type MateMode = "solo" | "with-friends";
+
+export type PassageSelection = {
+  book: string;
+  chapter: number;
+  startVerse: number;
+  endVerse: number;
+};
+
+export type RoomSettings = {
+  method: QtMethod;
+  mateMode: MateMode;
+  days: number[];
+  startDate: string;
+  passage: PassageSelection;
+};
 
 export type DraftAnswers = Record<QtQuestionKey, string>;
 
@@ -60,6 +79,54 @@ function draftKey(date: string): string {
 
 function scriptureSelectionKey(date: string): string {
   return `${SCRIPTURE_SELECTION_PREFIX}${getLocalUserId()}.${date}`;
+}
+
+function roomSettingsKey(): string {
+  return `${ROOM_SETTINGS_PREFIX}${getLocalUserId()}`;
+}
+
+export function defaultRoomSettings(today: string): RoomSettings {
+  return {
+    method: "shared",
+    mateMode: "with-friends",
+    days: [1, 3, 5],
+    startDate: today,
+    passage: {
+      book: "창세기",
+      chapter: 43,
+      startVerse: 15,
+      endVerse: 25
+    }
+  };
+}
+
+export function loadRoomSettings(today: string): RoomSettings {
+  if (typeof window === "undefined") return defaultRoomSettings(today);
+  const raw = window.localStorage.getItem(roomSettingsKey());
+  if (!raw) return defaultRoomSettings(today);
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<RoomSettings>;
+    const fallback = defaultRoomSettings(today);
+    return {
+      method: parsed.method ?? fallback.method,
+      mateMode: parsed.mateMode ?? fallback.mateMode,
+      days: parsed.days?.length ? parsed.days : fallback.days,
+      startDate: parsed.startDate ?? fallback.startDate,
+      passage: {
+        ...fallback.passage,
+        ...(parsed.passage ?? {})
+      }
+    };
+  } catch {
+    return defaultRoomSettings(today);
+  }
+}
+
+export function saveRoomSettings(settings: RoomSettings): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(roomSettingsKey(), JSON.stringify(settings));
+  emitChange();
 }
 
 export function getSelectedScriptureDate(date: string): string | null {

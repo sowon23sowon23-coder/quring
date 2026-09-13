@@ -22,13 +22,17 @@ import {
   emptyAnswers,
   getNickname,
   getSelectedScriptureDate,
+  loadRoomSettings,
   loadDraft,
+  saveRoomSettings,
   saveDraft,
   setSelectedScriptureDate,
   setNickname as persistNickname,
   subscribe,
   wordStats,
-  type DraftAnswers
+  type DraftAnswers,
+  type PassageSelection,
+  type RoomSettings
 } from "@/lib/qt-local";
 import {
   completeEntry,
@@ -56,10 +60,12 @@ type QtContextValue = {
   stats: { chars: number; answered: number };
   scriptureOptions: DailyScripture[];
   selectedScriptureDate: string;
+  roomSettings: RoomSettings;
   setAnswer: (key: QtQuestionKey, value: string) => void;
   completeToday: () => void;
   setNickname: (name: string) => void;
   selectScripture: (date: string) => void;
+  updateRoomSettings: (settings: RoomSettings) => void;
 };
 
 const QtContext = createContext<QtContextValue | null>(null);
@@ -79,6 +85,9 @@ export function QtProvider({ children }: { children: ReactNode }) {
   const [savedLabel, setSavedLabel] = useState("아직 저장 전");
   const [selectedScriptureDate, setSelectedScriptureDateState] = useState<string>(() =>
     getTodayKey()
+  );
+  const [roomSettings, setRoomSettings] = useState<RoomSettings>(() =>
+    loadRoomSettings(getTodayKey())
   );
 
   const saveTimer = useRef<number | null>(null);
@@ -101,9 +110,11 @@ export function QtProvider({ children }: { children: ReactNode }) {
 
     async function boot() {
       const key = getTodayKey();
+      const settings = loadRoomSettings(key);
       const storedScriptureDate = getSelectedScriptureDate(key);
       setTodayKey(key);
       setNicknameState(getNickname());
+      setRoomSettings(settings);
 
       if (isRemote && account.userId) {
         setMode("remote");
@@ -115,7 +126,8 @@ export function QtProvider({ children }: { children: ReactNode }) {
           const selectedScripture = storedScriptureDate
             ? getScriptureByExactDate(storedScriptureDate)
             : null;
-          const resolved = selectedScripture ?? remoteScripture ?? getScriptureForDate(key);
+          const selectedBySettings = resolveScriptureFromSettings(key, settings);
+          const resolved = selectedBySettings ?? selectedScripture ?? remoteScripture ?? getScriptureForDate(key);
           setScripture(resolved);
           setSelectedScriptureDateState(resolved.date);
 
@@ -139,7 +151,8 @@ export function QtProvider({ children }: { children: ReactNode }) {
           const selectedScripture = storedScriptureDate
             ? getScriptureByExactDate(storedScriptureDate)
             : null;
-          const resolved = selectedScripture ?? getScriptureForDate(key);
+          const selectedBySettings = resolveScriptureFromSettings(key, settings);
+          const resolved = selectedBySettings ?? selectedScripture ?? getScriptureForDate(key);
           setScripture(resolved);
           setSelectedScriptureDateState(resolved.date);
           hydrateLocal(key);
@@ -151,7 +164,8 @@ export function QtProvider({ children }: { children: ReactNode }) {
         const selectedScripture = storedScriptureDate
           ? getScriptureByExactDate(storedScriptureDate)
           : null;
-        const resolved = selectedScripture ?? getScriptureForDate(key);
+        const selectedBySettings = resolveScriptureFromSettings(key, settings);
+        const resolved = selectedBySettings ?? selectedScripture ?? getScriptureForDate(key);
         setScripture(resolved);
         setSelectedScriptureDateState(resolved.date);
         hydrateLocal(key);
@@ -238,6 +252,24 @@ export function QtProvider({ children }: { children: ReactNode }) {
     [todayKey]
   );
 
+  const updateRoomSettings = useCallback(
+    (settings: RoomSettings) => {
+      saveRoomSettings(settings);
+      setRoomSettings(settings);
+      const selectedBySettings = resolveScriptureFromSettings(todayKey, settings);
+      if (selectedBySettings) {
+        setScripture(selectedBySettings);
+        setSelectedScriptureDateState(selectedBySettings.date);
+      } else {
+        const fallback = getScriptureForDate(todayKey);
+        setScripture(fallback);
+        setSelectedScriptureDateState(fallback.date);
+      }
+      setSavedLabel("큐티 설정이 저장됨");
+    },
+    [todayKey]
+  );
+
   const value = useMemo<QtContextValue>(
     () => ({
       mode,
@@ -253,10 +285,12 @@ export function QtProvider({ children }: { children: ReactNode }) {
       stats: wordStats(answers),
       scriptureOptions: scriptures,
       selectedScriptureDate,
+      roomSettings,
       setAnswer,
       completeToday,
       setNickname,
-      selectScripture
+      selectScripture,
+      updateRoomSettings
     }),
     [
       mode,
@@ -269,10 +303,12 @@ export function QtProvider({ children }: { children: ReactNode }) {
       nickname,
       savedLabel,
       selectedScriptureDate,
+      roomSettings,
       setAnswer,
       completeToday,
       setNickname,
-      selectScripture
+      selectScripture,
+      updateRoomSettings
     ]
   );
 
@@ -296,3 +332,39 @@ function formatTime(iso: string): string {
 }
 
 export { remoteEnabled };
+
+function resolveScriptureFromSettings(
+  todayKey: string,
+  settings: RoomSettings
+): DailyScripture | null {
+  if (settings.method === "recommended") return null;
+  if (settings.method === "sequence") return null;
+  return passageToScripture(todayKey, settings.passage);
+}
+
+function passageToScripture(todayKey: string, passage: PassageSelection): DailyScripture {
+  const reference =
+    passage.startVerse === passage.endVerse
+      ? `${passage.book} ${passage.chapter}:${passage.startVerse}`
+      : `${passage.book} ${passage.chapter}:${passage.startVerse}-${passage.endVerse}`;
+
+  return {
+    date: todayKey,
+    book: passage.book,
+    reference,
+    title: "직접 선택한 말씀",
+    focusVerse: `${reference} 본문을 읽고 오늘 마음에 남는 말씀을 기록해보세요.`,
+    verses: [
+      {
+        no: passage.startVerse,
+        text: "선택한 범위의 성경 본문을 읽고, 가장 마음에 남는 구절을 아래 QT 기록에 남겨보세요."
+      }
+    ],
+    questions: {
+      heart_verse: "가장 마음에 남는 구절은 무엇이고, 왜 그런가요?",
+      message: "오늘 이 말씀을 통해 하나님이 내게 주시는 마음은 무엇인가요?",
+      practice: "이 말씀을 오늘 삶에서 어떻게 실천할 수 있을까요?",
+      prayer: "이 말씀을 붙들고 어떤 기도를 드리고 싶나요?"
+    }
+  };
+}
