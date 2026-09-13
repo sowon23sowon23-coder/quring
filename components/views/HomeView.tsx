@@ -42,9 +42,15 @@ export function HomeView() {
 
   const checklist = [
     {
+      title: "큐티 설정 확인",
+      description: "방식, 본문, 함께할 사람, 일정을 먼저 정해요",
+      href: "/scripture",
+      done: true,
+    },
+    {
       title: "오늘 말씀 읽기",
       description: scripture.reference,
-      href: "/scripture",
+      href: "/scripture#today-passage",
       done: true,
     },
     {
@@ -82,17 +88,17 @@ export function HomeView() {
             <div className="mt-8">
               <div className="flex flex-wrap gap-3">
                 <Link
-                  href="/write"
+                  href="/scripture"
                   className="inline-flex h-12 items-center gap-2 rounded-2xl bg-[#456d55] px-5 text-sm font-black text-white transition hover:bg-[#345741]"
                 >
-                  오늘 QT 시작하기
+                  큐티 준비하기
                   <ArrowRight className="h-4 w-4" aria-hidden />
                 </Link>
                 <Link
-                  href="/mate"
+                  href="/write"
                   className="inline-flex h-12 items-center gap-2 rounded-2xl border border-[#dce7df] bg-white px-5 text-sm font-black text-[#274735] transition hover:bg-[#f4f8f5]"
                 >
-                  큐티메이트 보기
+                  바로 작성하기
                 </Link>
               </div>
 
@@ -151,7 +157,7 @@ export function HomeView() {
               <p className="text-xs font-black uppercase tracking-[0.14em] text-[#496f8a]">
                 {displayDate(scripture.date)}
               </p>
-              <h2 className="mt-1 text-xl font-black text-[#18251f]">오늘의 큐티 흐름</h2>
+              <h2 className="mt-1 text-xl font-black text-[#18251f]">오늘의 큐티 순서</h2>
             </div>
             <Sparkles className="h-5 w-5 text-[#b8863b]" aria-hidden />
           </div>

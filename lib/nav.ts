@@ -10,8 +10,8 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { href: "/", label: "홈", icon: Home, match: (p) => p === "/" },
-  { href: "/scripture", label: "오늘의 말씀", icon: BookOpen, match: (p) => p.startsWith("/scripture") },
+  { href: "/scripture", label: "큐티 준비", icon: BookOpen, match: (p) => p.startsWith("/scripture") },
   { href: "/write", label: "QT 작성", icon: PenLine, match: (p) => p.startsWith("/write") },
-  { href: "/mate", label: "친구 QT", icon: HeartHandshake, match: (p) => p.startsWith("/mate") },
+  { href: "/mate", label: "나눔", icon: HeartHandshake, match: (p) => p.startsWith("/mate") },
   { href: "/archive", label: "기록", icon: CalendarDays, match: (p) => p.startsWith("/archive") }
 ];

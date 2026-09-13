@@ -104,41 +104,18 @@ export function ScriptureView() {
 
   return (
     <section className="mx-auto max-w-3xl rounded-3xl border border-ocean-100 bg-white p-6 lg:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold text-ocean-500">{displayDate(scripture.date)}</p>
-          <h2 className="mt-1 text-2xl font-black text-ocean-950">{scripture.reference}</h2>
-          <p className="mt-1 text-sm text-ocean-600">{scripture.title}</p>
-        </div>
-        <div className="inline-flex items-center gap-1 rounded-2xl border border-ocean-200 bg-white p-1">
-          <button
-            type="button"
-            onClick={() => changeFont(-1)}
-            disabled={fontSize <= MIN}
-            aria-label="글자 작게"
-            className="grid h-9 w-9 place-items-center rounded-xl text-ocean-700 transition hover:bg-ocean-50 disabled:opacity-40"
-          >
-            <Minus className="h-4 w-4" aria-hidden />
-          </button>
-          <span className="w-10 text-center text-xs font-bold text-ocean-600">{fontSize}px</span>
-          <button
-            type="button"
-            onClick={() => changeFont(1)}
-            disabled={fontSize >= MAX}
-            aria-label="글자 크게"
-            className="grid h-9 w-9 place-items-center rounded-xl text-ocean-700 transition hover:bg-ocean-50 disabled:opacity-40"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-          </button>
-        </div>
+      <div>
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-ocean-500">
+          Step 1 · QT Setup
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-ocean-950">큐티를 시작하기 전에 정리해요</h2>
+        <p className="mt-2 text-sm leading-7 text-ocean-700">
+          먼저 큐티 방식, 오늘 읽을 본문, 함께할 사람, 일정을 정하세요. 설정이 끝나면
+          아래에서 오늘 말씀을 확인하고 바로 묵상을 시작할 수 있어요.
+        </p>
       </div>
 
       <div className="mt-6 space-y-4 rounded-3xl border border-ocean-100 bg-ocean-50/60 p-4 sm:p-5">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-ocean-500">QT Room</p>
-          <h3 className="mt-1 text-lg font-black text-ocean-950">큐티 설정</h3>
-        </div>
-
         <SettingBlock index="1" title="큐티 방식 설정">
           <div className="grid gap-2 sm:grid-cols-2">
             {METHOD_OPTIONS.map((option) => (
@@ -258,6 +235,38 @@ export function ScriptureView() {
             />
           </Field>
         </SettingBlock>
+      </div>
+
+      <div id="today-passage" className="mt-8 flex flex-wrap items-start justify-between gap-4 border-t border-ocean-100 pt-8">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-ocean-500">
+            Step 2 · Read
+          </p>
+          <p className="mt-2 text-sm font-bold text-ocean-500">{displayDate(scripture.date)}</p>
+          <h3 className="mt-1 text-2xl font-black text-ocean-950">{scripture.reference}</h3>
+          <p className="mt-1 text-sm text-ocean-600">{scripture.title}</p>
+        </div>
+        <div className="inline-flex items-center gap-1 rounded-2xl border border-ocean-200 bg-white p-1">
+          <button
+            type="button"
+            onClick={() => changeFont(-1)}
+            disabled={fontSize <= MIN}
+            aria-label="글자 작게"
+            className="grid h-9 w-9 place-items-center rounded-xl text-ocean-700 transition hover:bg-ocean-50 disabled:opacity-40"
+          >
+            <Minus className="h-4 w-4" aria-hidden />
+          </button>
+          <span className="w-10 text-center text-xs font-bold text-ocean-600">{fontSize}px</span>
+          <button
+            type="button"
+            onClick={() => changeFont(1)}
+            disabled={fontSize >= MAX}
+            aria-label="글자 크게"
+            className="grid h-9 w-9 place-items-center rounded-xl text-ocean-700 transition hover:bg-ocean-50 disabled:opacity-40"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
       </div>
 
       <p className="mt-6 rounded-2xl border border-ocean-100 bg-ocean-50/60 p-4 text-base font-semibold leading-8 text-ocean-900">

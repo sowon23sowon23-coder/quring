@@ -26,9 +26,9 @@ export function MateView() {
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
       <section className="rounded-3xl border border-ocean-100 bg-white p-6">
-        <h2 className="text-xl font-black text-ocean-950">친구 QT</h2>
+        <h2 className="text-xl font-black text-ocean-950">나눔과 기도</h2>
         <p className="mt-1 text-sm leading-7 text-ocean-700">
-          1:1 QT Mate와 같은 날 말씀을 묵상하고, 둘 다 완료하면 서로의 기록이 열립니다.
+          같은 말씀으로 QT를 마치면 큐티메이트와 서로의 묵상과 기도제목을 나눌 수 있어요.
         </p>
 
         {mate.mode === "remote" ? (

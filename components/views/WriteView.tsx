@@ -24,8 +24,8 @@ export function WriteView() {
             </p>
           ))}
         </div>
-        <Link href="/scripture" className="mt-4 inline-block text-sm font-bold text-ocean-600 hover:text-ocean-800">
-          전체 본문 보기
+        <Link href="/scripture#today-passage" className="mt-4 inline-block text-sm font-bold text-ocean-600 hover:text-ocean-800">
+          오늘 말씀 다시 보기
         </Link>
       </section>
 
