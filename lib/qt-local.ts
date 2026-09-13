@@ -7,6 +7,7 @@ const UID_KEY = "curing.uid";
 const NICK_KEY = "curing.nickname";
 const DRAFT_PREFIX = "curing.qt.";
 const MATE_PREFIX = "curing.mate.";
+const SCRIPTURE_SELECTION_PREFIX = "curing.scripture.";
 
 export type DraftAnswers = Record<QtQuestionKey, string>;
 
@@ -55,6 +56,21 @@ export function setNickname(name: string): void {
 
 function draftKey(date: string): string {
   return `${DRAFT_PREFIX}${getLocalUserId()}.${date}`;
+}
+
+function scriptureSelectionKey(date: string): string {
+  return `${SCRIPTURE_SELECTION_PREFIX}${getLocalUserId()}.${date}`;
+}
+
+export function getSelectedScriptureDate(date: string): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(scriptureSelectionKey(date));
+}
+
+export function setSelectedScriptureDate(date: string, scriptureDate: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(scriptureSelectionKey(date), scriptureDate);
+  emitChange();
 }
 
 export function loadDraft(date: string): DraftRecord | null {

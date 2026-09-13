@@ -12,15 +12,19 @@ import {
 } from "react";
 import {
   getScriptureForDate,
+  getScriptureByExactDate,
   getTodayKey,
+  scriptures,
   type DailyScripture,
   type QtQuestionKey
 } from "@/lib/scriptures";
 import {
   emptyAnswers,
   getNickname,
+  getSelectedScriptureDate,
   loadDraft,
   saveDraft,
+  setSelectedScriptureDate,
   setNickname as persistNickname,
   subscribe,
   wordStats,
@@ -50,9 +54,12 @@ type QtContextValue = {
   nickname: string;
   savedLabel: string;
   stats: { chars: number; answered: number };
+  scriptureOptions: DailyScripture[];
+  selectedScriptureDate: string;
   setAnswer: (key: QtQuestionKey, value: string) => void;
   completeToday: () => void;
   setNickname: (name: string) => void;
+  selectScripture: (date: string) => void;
 };
 
 const QtContext = createContext<QtContextValue | null>(null);
@@ -70,6 +77,9 @@ export function QtProvider({ children }: { children: ReactNode }) {
   const [remoteEntryId, setRemoteEntryId] = useState<string | null>(null);
   const [nickname, setNicknameState] = useState("친구");
   const [savedLabel, setSavedLabel] = useState("아직 저장 전");
+  const [selectedScriptureDate, setSelectedScriptureDateState] = useState<string>(() =>
+    getTodayKey()
+  );
 
   const saveTimer = useRef<number | null>(null);
   const answersRef = useRef(answers);
@@ -91,6 +101,7 @@ export function QtProvider({ children }: { children: ReactNode }) {
 
     async function boot() {
       const key = getTodayKey();
+      const storedScriptureDate = getSelectedScriptureDate(key);
       setTodayKey(key);
       setNicknameState(getNickname());
 
@@ -101,8 +112,12 @@ export function QtProvider({ children }: { children: ReactNode }) {
 
           const remoteScripture = await getRemoteScripture(key);
           if (cancelled) return;
-          const resolved = remoteScripture ?? getScriptureForDate(key);
+          const selectedScripture = storedScriptureDate
+            ? getScriptureByExactDate(storedScriptureDate)
+            : null;
+          const resolved = selectedScripture ?? remoteScripture ?? getScriptureForDate(key);
           setScripture(resolved);
+          setSelectedScriptureDateState(resolved.date);
 
           const entry = await ensureEntry(account.userId, key);
           if (cancelled) return;
@@ -121,14 +136,24 @@ export function QtProvider({ children }: { children: ReactNode }) {
           }
         } catch {
           setRemoteEntryId(null);
-          setScripture(getScriptureForDate(key));
+          const selectedScripture = storedScriptureDate
+            ? getScriptureByExactDate(storedScriptureDate)
+            : null;
+          const resolved = selectedScripture ?? getScriptureForDate(key);
+          setScripture(resolved);
+          setSelectedScriptureDateState(resolved.date);
           hydrateLocal(key);
           setSavedLabel("동기화 실패 · 로컬 저장");
         }
       } else {
         setMode("guest");
         setRemoteEntryId(null);
-        setScripture(getScriptureForDate(key));
+        const selectedScripture = storedScriptureDate
+          ? getScriptureByExactDate(storedScriptureDate)
+          : null;
+        const resolved = selectedScripture ?? getScriptureForDate(key);
+        setScripture(resolved);
+        setSelectedScriptureDateState(resolved.date);
         hydrateLocal(key);
       }
 
@@ -201,6 +226,18 @@ export function QtProvider({ children }: { children: ReactNode }) {
     setNicknameState(name.trim() || "친구");
   }, []);
 
+  const selectScripture = useCallback(
+    (date: string) => {
+      const next = getScriptureByExactDate(date);
+      if (!next) return;
+      setSelectedScriptureDate(todayKey, date);
+      setSelectedScriptureDateState(date);
+      setScripture(next);
+      setSavedLabel("선택한 본문으로 변경됨");
+    },
+    [todayKey]
+  );
+
   const value = useMemo<QtContextValue>(
     () => ({
       mode,
@@ -214,9 +251,12 @@ export function QtProvider({ children }: { children: ReactNode }) {
       nickname,
       savedLabel,
       stats: wordStats(answers),
+      scriptureOptions: scriptures,
+      selectedScriptureDate,
       setAnswer,
       completeToday,
-      setNickname
+      setNickname,
+      selectScripture
     }),
     [
       mode,
@@ -228,9 +268,11 @@ export function QtProvider({ children }: { children: ReactNode }) {
       remoteEntryId,
       nickname,
       savedLabel,
+      selectedScriptureDate,
       setAnswer,
       completeToday,
-      setNickname
+      setNickname,
+      selectScripture
     ]
   );
 

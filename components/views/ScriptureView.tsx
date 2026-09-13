@@ -11,7 +11,7 @@ const MIN = 15;
 const MAX = 22;
 
 export function ScriptureView() {
-  const { scripture } = useQt();
+  const { scripture, scriptureOptions, selectedScriptureDate, selectScripture } = useQt();
   const [fontSize, setFontSize] = useState(17);
 
   useEffect(() => {
@@ -56,6 +56,27 @@ export function ScriptureView() {
             <Plus className="h-4 w-4" aria-hidden />
           </button>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-2xl border border-ocean-100 bg-ocean-50/60 p-4">
+        <label htmlFor="scripture-select" className="block text-sm font-black text-ocean-950">
+          큐티 본문 선택
+        </label>
+        <p className="mt-1 text-sm leading-6 text-ocean-700">
+          오늘 묵상할 본문을 직접 선택할 수 있어요. 선택한 본문은 이 기기에 저장됩니다.
+        </p>
+        <select
+          id="scripture-select"
+          value={selectedScriptureDate}
+          onChange={(event) => selectScripture(event.target.value)}
+          className="mt-3 h-12 w-full rounded-2xl border border-ocean-200 bg-white px-4 text-sm font-bold text-ocean-900 outline-none transition focus:border-ocean-600 focus:ring-2 focus:ring-ocean-100"
+        >
+          {scriptureOptions.map((item) => (
+            <option key={item.date} value={item.date}>
+              {item.reference} · {item.title}
+            </option>
+          ))}
+        </select>
       </div>
 
       <p className="mt-6 rounded-2xl border border-ocean-100 bg-ocean-50/60 p-4 text-base font-semibold leading-8 text-ocean-900">
